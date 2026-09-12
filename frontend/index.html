@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AQUA SCOPE— Oil Spill Intelligence &amp; Decision Support System</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">🌊</span>
+      <div>
+        <div class="brand-title">AQUA SCOPE</div>
+        <div class="brand-sub">Oil Spill Detection &amp; 10-Hour Dynamic Prediction System</div>
+      </div>
+    </div>
+
+    <div class="topbar-center">
+      <label for="caseSelect">Case</label>
+      <select id="caseSelect"></select>
+      <button id="btnRun" class="btn btn-primary">▶ Run Full Analysis</button>
+      <button id="btnReset" class="btn">⟲ Reset Case</button>
+    </div>
+
+    <div class="topbar-right">
+      <span id="statusBadge" class="status-badge">● System Ready</span>
+      <span id="clock" class="clock"></span>
+    </div>
+  </header>
+
+  <div class="notice-bar">
+    ⚠ Prototype uses <strong>synthetic</strong> satellite, environmental and AIS data for demonstration only —
+    not connected to live satellites. Vessel scores are investigative rankings, not proof of responsibility.
+  </div>
+
+  <!-- KPI STRIP -->
+  <section class="kpi-strip" id="kpiStrip"></section>
+
+  <main class="main-grid">
+
+    <!-- LEFT PANEL -->
+    <aside class="panel left-panel">
+      <div class="panel-block">
+        <h3>Case Summary</h3>
+        <div id="caseSummary" class="case-summary"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Slicks / Candidates</h3>
+        <div id="slickList" class="slick-list"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Detection &amp; Validation</h3>
+        <table class="mini-table" id="detectionTable">
+          <thead><tr><th>ID</th><th>SAR</th><th>EO</th><th>Class</th><th>Conf.</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </aside>
+
+    <!-- CENTER -->
+    <section class="panel center-panel">
+      <div class="tabs" id="mapTabs">
+        <button class="tab active" data-tab="map">Map View</button>
+        <button class="tab" data-tab="compare">Before vs After (Env. Change)</button>
+      </div>
+
+      <div id="tab-map" class="tab-content active">
+        <div id="map"></div>
+        <div class="slider-row">
+          <label>Time: <span id="hourLabel">0h</span></label>
+          <input type="range" id="hourSlider" min="0" max="10" value="0" step="1" />
+          <span class="slider-hint">Drag to animate the selected slick's forecast position (0–10h)</span>
+        </div>
+      </div>
+
+      <div id="tab-compare" class="tab-content">
+        <div id="compareInfo" class="compare-info">Run a Recalculate in the Environment Simulator to compare trajectories.</div>
+        <div id="compareMap"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Estimated Spill Timeline</h3>
+        <div id="timeline" class="timeline"></div>
+      </div>
+
+      <div class="panel-block">
+        <div class="table-header-row">
+          <h3>Trajectory Table (Selected Slick)</h3>
+        </div>
+        <div class="table-scroll">
+          <table class="data-table" id="trajTable">
+            <thead><tr><th>Hour</th><th>Lat</th><th>Lon</th><th>Direction</th><th>Distance (km)</th><th>Uncertainty (±km)</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL -->
+    <aside class="panel right-panel">
+      <div class="panel-block">
+        <div class="table-header-row"><h3>Selected Slick — Details</h3><span id="classBadge" class="badge"></span></div>
+        <div id="slickDetails" class="kv-list"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Evidence Fusion (Explainable)</h3>
+        <div id="fusionBreakdown" class="fusion-list"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Environment Simulator</h3>
+        <div class="sim-row"><label>Wind speed (m/s)</label><input type="range" id="simWindSpeed" min="0" max="25" step="0.5"><span id="simWindSpeedVal"></span></div>
+        <div class="sim-row"><label>Wind direction (°)</label><input type="range" id="simWindDir" min="0" max="359" step="1"><span id="simWindDirVal"></span></div>
+        <div class="sim-row"><label>Current speed (m/s)</label><input type="range" id="simCurSpeed" min="0" max="3" step="0.05"><span id="simCurSpeedVal"></span></div>
+        <div class="sim-row"><label>Current direction (°)</label><input type="range" id="simCurDir" min="0" max="359" step="1"><span id="simCurDirVal"></span></div>
+        <button id="btnRecalc" class="btn btn-accent full-width">Recalculate Trajectory</button>
+        <div id="recalcResult" class="recalc-result"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Self-Correction (New Satellite Observation)</h3>
+        <button id="btnObserve" class="btn full-width">📡 Simulate New Observation at slider hour</button>
+        <div id="observePanel" class="kv-list"></div>
+        <button id="btnCorrect" class="btn btn-accent full-width" disabled>Apply Correction</button>
+      </div>
+
+      <div class="panel-block">
+        <h3>AIS Candidate Vessels</h3>
+        <div class="table-scroll">
+          <table class="data-table" id="aisTable">
+            <thead><tr><th>Rank</th><th>Vessel</th><th>MMSI</th><th>Dist(km)</th><th>Time</th><th>Traj.</th><th>Score</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="darkVesselFlag" class="dark-vessel-flag"></div>
+      </div>
+
+      <div class="panel-block">
+        <h3>Impact / Sensitive-Zone Assessment</h3>
+        <div id="impactPanel" class="kv-list"></div>
+      </div>
+    </aside>
+  </main>
+
+  <!-- BOTTOM: METADATA TABLE -->
+  <section class="panel bottom-panel">
+    <div class="table-header-row">
+      <h3>Detection Metadata Table (All Cases)</h3>
+      <input type="text" id="metaFilter" placeholder="Filter rows…" />
+    </div>
+    <div class="table-scroll tall">
+      <table class="data-table" id="metaTable">
+        <thead id="metaThead"></thead>
+        <tbody id="metaTbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer class="footer">
+    MarineGuard  · SIH26143 · Prototype / Synthetic Data — For a Cleaner Ocean · Not for legal use — Investigative Support Only
+  </footer>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
